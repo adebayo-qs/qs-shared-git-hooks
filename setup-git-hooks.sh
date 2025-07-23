@@ -7,11 +7,26 @@
 # Configuration
 # -----------------------------
 
-# URL of the Git hooks repository
+# Paths and URLs
+CONFIG_DIR="$HOME/.qs-internal"
+CONFIG_FILE="$CONFIG_DIR/config"
 HOOKS_REPO_URL="git@bitbucket.org:quantspark/qs-shared-git-hooks.git"
 HOOKS_SUBDIR="hooks"
 TEMP_DIR_PREFIX="temp_git_hooks_"
 DEST_DIR="$HOME/.qs-internal/hooks"
+
+# Function to create config directory and file
+create_config_dir() {
+    if [ ! -d "$CONFIG_DIR" ]; then
+        if ! mkdir -p "$CONFIG_DIR"; then
+            echo "Error: Failed to create directory: $CONFIG_DIR"
+            exit 1
+        fi
+    fi
+    
+    # Create or clear config file
+    > "$CONFIG_FILE"
+}
 
 # Function to detect shell configuration file
 detect_shell_config() {
@@ -30,45 +45,57 @@ setup_environment_variables() {
     setup_variable() {
         local var_name=$1
         local description=$2
-        local allow_empty=${3:-false}
         
-        if ! grep -q "export $var_name=" "$SHELL_CONFIG"; then
-            echo -n "Enter $var_name ($description): "
-            read -r var_value
-            
-            if [ -z "$var_value" ] && [ "$allow_empty" = "false" ]; then
-                echo "Error: $var_name cannot be empty"
-                exit 1
-            fi
-            
-            if [ ! -z "$var_value" ]; then
-                echo "export $var_name=\"$var_value\"" >> "$SHELL_CONFIG"
-            fi
+        echo -n "Enter $var_name ($description): "
+        read -r var_value
+        
+        if [ -z "$var_value" ]; then
+            echo "Error: $var_name cannot be empty"
+            exit 1
         fi
+        
+        echo "export $var_name=\"$var_value\"" >> "$CONFIG_FILE"
     }
 
-    # Prompt for LLM provider first
-    setup_variable "QSGH_LLM_PROVIDER" "LLM provider to use (openai or anthropic)" false
-    
-    # Based on provider, prompt for the appropriate API key
-    if [ "$var_value" = "openai" ]; then
-        setup_variable "QSGH_API_KEY" "OpenAI API key for generating PR descriptions" false
-    elif [ "$var_value" = "anthropic" ]; then
-        setup_variable "QSGH_ANTHROPIC_API_KEY" "Anthropic API key for generating PR descriptions" false
-    else
-        echo "Error: Invalid LLM provider. Must be either 'openai' or 'anthropic'"
-        exit 1
-    fi
-    
-    setup_variable "QSGH_BITBUCKET_USERNAME" "Your Bitbucket username" false
-    setup_variable "QSGH_BITBUCKET_APP_PASSWORD" "Your Bitbucket app password" false
-    setup_variable "QSGH_DEFAULT_DESTINATION_BRANCH" "Default branch for pull requests (e.g., development)" false
+    # First prompt for LLM provider
+    echo "Select LLM provider:"
+    echo "1) OpenAI"
+    echo "2) Anthropic"
+    read -p "Enter choice (1 or 2): " provider_choice
+
+    case $provider_choice in
+        1)
+            echo "export QSGH_LLM_PROVIDER=\"openai\"" >> "$CONFIG_FILE"
+            setup_variable "QSGH_API_KEY" "OpenAI API key for generating PR descriptions"
+            ;;
+        2)
+            echo "export QSGH_LLM_PROVIDER=\"anthropic\"" >> "$CONFIG_FILE"
+            setup_variable "QSGH_ANTHROPIC_API_KEY" "Anthropic API key for generating PR descriptions"
+            ;;
+        *)
+            echo "Error: Invalid choice"
+            exit 1
+            ;;
+    esac
+
+    # Setup common variables
+    setup_variable "QSGH_BITBUCKET_USERNAME" "Your Bitbucket username"
+    setup_variable "QSGH_BITBUCKET_APP_PASSWORD" "Your Bitbucket app password"
+    setup_variable "QSGH_DEFAULT_DESTINATION_BRANCH" "Default branch for pull requests (e.g., development)"
 }
 
-# Function to setup git function
-setup_git_function() {
+# Function to setup shell configuration
+setup_shell_config() {
+    # Add git function if not present
     if ! grep -q "git()" "$SHELL_CONFIG"; then
         cat git-function.sh >> "$SHELL_CONFIG"
+    fi
+
+    # Add config file sourcing if not present
+    if ! grep -q "source $CONFIG_FILE" "$SHELL_CONFIG"; then
+        echo "" >> "$SHELL_CONFIG"
+        echo "# Source QS Git Hooks config" >> "$SHELL_CONFIG"
+        echo "source $CONFIG_FILE" >> "$SHELL_CONFIG"
     fi
 }
 
@@ -116,6 +143,9 @@ set_permissions() {
 # Detect shell configuration file
 detect_shell_config
 
+# Create config directory and file
+create_config_dir
+
 # Ensure the destination directory exists
 if [ ! -d "$DEST_DIR" ]; then
     if ! mkdir -p "$DEST_DIR"; then
@@ -136,8 +166,8 @@ set_permissions
 # Setup environment variables
 setup_environment_variables
 
-# Setup git function
-setup_git_function
+# Setup shell configuration
+setup_shell_config
 
 # Clean up
 rm -rf "$CLONE_DIR"

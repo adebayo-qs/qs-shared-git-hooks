@@ -88,7 +88,7 @@ setup_environment_variables() {
 setup_shell_config() {
     # Add git function if not present
     if ! grep -q "git()" "$SHELL_CONFIG"; then
-        cat git-function.sh >> "$SHELL_CONFIG"
+        cat "$CONFIG_DIR/git-function.sh" >> "$SHELL_CONFIG"
     fi
 
     # Add config file sourcing if not present
@@ -110,7 +110,7 @@ clone_hooks_repo() {
     fi
 }
 
-# Function to copy hooks to the destination directory
+# Function to copy hooks and git function to the destination directory
 copy_hooks() {
     SOURCE_HOOKS_DIR="$CLONE_DIR/$HOOKS_SUBDIR"
     
@@ -120,8 +120,22 @@ copy_hooks() {
         exit 1
     fi
     
+    # Copy hooks
     if ! cp -r "$SOURCE_HOOKS_DIR/." "$DEST_DIR/"; then
         echo "Error: Failed to copy hooks"
+        rm -rf "$CLONE_DIR"
+        exit 1
+    fi
+
+    # Copy git-function.sh
+    if [ ! -f "$CLONE_DIR/git-function.sh" ]; then
+        echo "Error: git-function.sh not found in cloned repository"
+        rm -rf "$CLONE_DIR"
+        exit 1
+    fi
+    
+    if ! cp "$CLONE_DIR/git-function.sh" "$CONFIG_DIR/"; then
+        echo "Error: Failed to copy git-function.sh"
         rm -rf "$CLONE_DIR"
         exit 1
     fi

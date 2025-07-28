@@ -7,6 +7,18 @@
 # Configuration
 # -----------------------------
 
+# Command line arguments
+RESET_CONFIG=false
+
+# Parse command line arguments
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --reset) RESET_CONFIG=true ;;
+        *) echo "Unknown parameter: $1"; exit 1 ;;
+    esac
+    shift
+done
+
 # Paths and URLs
 CONFIG_DIR="$HOME/.qs-internal"
 CONFIG_FILE="$CONFIG_DIR/config"
@@ -14,6 +26,12 @@ HOOKS_REPO_URL="git@bitbucket.org:quantspark/qs-shared-git-hooks.git"
 HOOKS_SUBDIR="hooks"
 TEMP_DIR_PREFIX="temp_git_hooks_"
 DEST_DIR="$HOME/.qs-internal/hooks"
+
+# Function to check if a variable exists in config file
+variable_exists() {
+    local var_name=$1
+    [ -f "$CONFIG_FILE" ] && grep -q "export $var_name=" "$CONFIG_FILE"
+}
 
 # Function to create config directory and file
 create_config_dir() {
@@ -24,8 +42,11 @@ create_config_dir() {
         fi
     fi
     
-    # Create or clear config file
-    > "$CONFIG_FILE"
+    # Only clear config file if reset flag is set
+    if [ "$RESET_CONFIG" = true ]; then
+        > "$CONFIG_FILE"
+        echo "Resetting configuration file..."
+    fi
 }
 
 # Function to detect shell configuration file
@@ -46,37 +67,41 @@ setup_environment_variables() {
         local var_name=$1
         local description=$2
         
-        echo -n "Enter $var_name ($description): "
-        read -r var_value
-        
-        if [ -z "$var_value" ]; then
-            echo "Error: $var_name cannot be empty"
-            exit 1
+        if [ "$RESET_CONFIG" = true ] || ! variable_exists "$var_name"; then
+            echo -n "Enter $var_name ($description): "
+            read -r var_value
+            
+            if [ -z "$var_value" ]; then
+                echo "Error: $var_name cannot be empty"
+                exit 1
+            fi
+            
+            echo "export $var_name=\"$var_value\"" >> "$CONFIG_FILE"
         fi
-        
-        echo "export $var_name=\"$var_value\"" >> "$CONFIG_FILE"
     }
 
     # First prompt for LLM provider
-    echo "Select LLM provider:"
-    echo "1) OpenAI"
-    echo "2) Anthropic"
-    read -p "Enter choice (1 or 2): " provider_choice
+    if [ "$RESET_CONFIG" = true ] || ! variable_exists "QSGH_LLM_PROVIDER"; then
+        echo "Select LLM provider:"
+        echo "1) OpenAI"
+        echo "2) Anthropic"
+        read -p "Enter choice (1 or 2): " provider_choice
 
-    case $provider_choice in
-        1)
-            echo "export QSGH_LLM_PROVIDER=\"openai\"" >> "$CONFIG_FILE"
-            setup_variable "QSGH_API_KEY" "OpenAI API key for generating PR descriptions"
-            ;;
-        2)
-            echo "export QSGH_LLM_PROVIDER=\"anthropic\"" >> "$CONFIG_FILE"
-            setup_variable "QSGH_ANTHROPIC_API_KEY" "Anthropic API key for generating PR descriptions"
-            ;;
-        *)
-            echo "Error: Invalid choice"
-            exit 1
-            ;;
-    esac
+        case $provider_choice in
+            1)
+                echo "export QSGH_LLM_PROVIDER=\"openai\"" >> "$CONFIG_FILE"
+                setup_variable "QSGH_API_KEY" "OpenAI API key for generating PR descriptions"
+                ;;
+            2)
+                echo "export QSGH_LLM_PROVIDER=\"anthropic\"" >> "$CONFIG_FILE"
+                setup_variable "QSGH_ANTHROPIC_API_KEY" "Anthropic API key for generating PR descriptions"
+                ;;
+            *)
+                echo "Error: Invalid choice"
+                exit 1
+                ;;
+        esac
+    fi
 
     # Setup common variables
     setup_variable "QSGH_BITBUCKET_USERNAME" "Your Bitbucket username"

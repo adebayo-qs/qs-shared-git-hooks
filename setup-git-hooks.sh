@@ -55,6 +55,20 @@ detect_shell_config() {
         SHELL_CONFIG="$HOME/.zshrc"
     elif [[ "$SHELL" == *"bash"* ]]; then
         SHELL_CONFIG="$HOME/.bashrc"
+        BASH_PROFILE="$HOME/.bash_profile"
+        # Create .bashrc if it doesn't exist
+        touch "$SHELL_CONFIG"
+        # Ensure .bash_profile sources .bashrc
+        if [ -f "$BASH_PROFILE" ]; then
+            if ! grep -q "source.*\.bashrc" "$BASH_PROFILE"; then
+                echo "" >> "$BASH_PROFILE"
+                echo "# Source .bashrc for non-login shells" >> "$BASH_PROFILE"
+                echo '[ -f "$HOME/.bashrc" ] && . "$HOME/.bashrc"' >> "$BASH_PROFILE"
+            fi
+        else
+            echo "# Source .bashrc for non-login shells" > "$BASH_PROFILE"
+            echo '[ -f "$HOME/.bashrc" ] && . "$HOME/.bashrc"' >> "$BASH_PROFILE"
+        fi
     else
         echo "Error: Unable to detect shell configuration file"
         exit 1

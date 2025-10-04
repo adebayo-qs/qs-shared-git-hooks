@@ -26,6 +26,7 @@ HOOKS_REPO_URL="git@bitbucket.org:quantspark/qs-shared-git-hooks.git"
 HOOKS_SUBDIR="hooks"
 TEMP_DIR_PREFIX="temp_git_hooks_"
 DEST_DIR="$HOME/.qs-internal/hooks"
+VENV_DIR="$CONFIG_DIR/venv"
 
 # Function to check if a variable exists in config file
 variable_exists() {
@@ -138,12 +139,58 @@ setup_shell_config() {
     fi
 }
 
+# Function to verify required dependencies
+verify_required_dependencies() {
+    command -v git >/dev/null 2>&1 || {
+        echo >&2 "Git is required but not installed. Aborting."
+        exit 1
+    }
+    command -v curl >/dev/null 2>&1 || {
+        echo >&2 "cURL is required but not installed. Aborting."
+        exit 1
+    }
+    command -v jq >/dev/null 2>&1 || {
+        echo >&2 "jq is required but not installed. Aborting."
+        exit 1
+    }
+    command -v python3 >/dev/null 2>&1 || {
+        echo >&2 "Python 3 is required but not installed. Aborting."
+        exit 1
+    }
+}
+
 # Function to clone the hooks repository
 clone_hooks_repo() {
     CLONE_DIR=$(mktemp -d -t ${TEMP_DIR_PREFIX}XXXX)
     
     if ! git clone "$HOOKS_REPO_URL" "$CLONE_DIR" >/dev/null 2>&1; then
         echo "Error: Failed to clone the hooks repository"
+        rm -rf "$CLONE_DIR"
+        exit 1
+    fi
+}
+
+# Function to setup Python virtual environment
+setup_python_environment() {
+    echo "Setting up Python virtual environment..."
+    
+    # Remove existing venv if resetting
+    if [ "$RESET_CONFIG" = true ] && [ -d "$VENV_DIR" ]; then
+        rm -rf "$VENV_DIR"
+    fi
+
+    # Create virtual environment if it doesn't exist
+    if [ ! -d "$VENV_DIR" ]; then
+        if ! python3 -m venv "$VENV_DIR"; then
+            echo "Error: Failed to create virtual environment"
+            rm -rf "$CLONE_DIR"
+            exit 1
+        fi
+    fi
+
+    # Install requirements
+    if ! "$VENV_DIR/bin/pip" install -r "$CLONE_DIR/requirements.txt"; then
+        echo "Error: Failed to install Python dependencies"
         rm -rf "$CLONE_DIR"
         exit 1
     fi
@@ -207,8 +254,14 @@ if [ ! -d "$DEST_DIR" ]; then
     fi
 fi
 
+# Verify dependencies
+verify_required_dependencies
+
 # Clone the hooks repository
 clone_hooks_repo
+
+# Setup Python environment
+setup_python_environment
 
 # Copy hooks to the destination directory
 copy_hooks

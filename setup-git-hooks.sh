@@ -119,8 +119,8 @@ setup_environment_variables() {
     fi
 
     # Setup common variables
-    setup_variable "QSGH_BITBUCKET_USERNAME" "Your Bitbucket username"
-    setup_variable "QSGH_BITBUCKET_APP_PASSWORD" "Your Bitbucket app password"
+    setup_variable "QSGH_BITBUCKET_EMAIL" "Your Atlassian account email (from Bitbucket Personal settings)"
+    setup_variable "QSGH_BITBUCKET_TOKEN" "Your Bitbucket API token"
     setup_variable "QSGH_DEFAULT_DESTINATION_BRANCH" "Default branch for pull requests (e.g., development)"
 }
 
